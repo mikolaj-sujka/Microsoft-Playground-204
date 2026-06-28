@@ -26,6 +26,19 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    public static IServiceCollection AddApplicationInisghts(
+        this IServiceCollection services,
+        IConfiguration configuration
+    )
+    {
+        services.AddApplicationInsightsTelemetry(new Microsoft.ApplicationInsights.AspNetCore.Extensions.ApplicationInsightsServiceOptions
+        {
+            ConnectionString = configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]
+        });
+
+        return services;
+    }
+
     private static IServiceCollection AddConfigurationOptions(
         this IServiceCollection services,
         IConfiguration configuration)
@@ -53,7 +66,15 @@ public static class ServiceCollectionExtensions
                 appConfiguration => !appConfiguration.Enabled
                     || !string.IsNullOrWhiteSpace(appConfiguration.ConnectionString)
                     || Uri.TryCreate(appConfiguration.Endpoint, UriKind.Absolute, out _),
-                "AzureAppConfiguration requires Endpoint or ConnectionString when enabled.")
+                "AzureAppConfiguration requires Endpoint, ConnectionString, or AppConfig when enabled.")
+            .ValidateOnStart();
+
+        services
+            .AddOptions<ScalarConfiguration>()
+            .Bind(configuration.GetSection(ScalarConfiguration.SectionName))
+            .Validate(scalar => !scalar.Enabled || !string.IsNullOrWhiteSpace(scalar.EndpointPrefix), "Scalar:EndpointPrefix is required when Scalar is enabled.")
+            .Validate(scalar => !scalar.Enabled || !string.IsNullOrWhiteSpace(scalar.OpenApiRoutePattern), "Scalar:OpenApiRoutePattern is required when Scalar is enabled.")
+            .Validate(scalar => !scalar.Enabled || !string.IsNullOrWhiteSpace(scalar.Title), "Scalar:Title is required when Scalar is enabled.")
             .ValidateOnStart();
 
         return services;

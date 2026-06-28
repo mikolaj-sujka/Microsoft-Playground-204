@@ -43,6 +43,18 @@ Accept: application/json
 
 ###
 
+# OpenAPI document used by Scalar
+GET {{MicrosoftPlayground.Api_HostAddress}}/openapi/v1.json
+Accept: application/json
+
+###
+
+# Scalar API Reference UI
+GET {{MicrosoftPlayground.Api_HostAddress}}/scalar/
+Accept: text/html
+
+###
+
 # To test disabled flags locally, add these environment variables in launchSettings.json
 # or in Visual Studio debug profile, then restart the app:
 #

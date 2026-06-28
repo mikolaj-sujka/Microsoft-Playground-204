@@ -42,6 +42,7 @@ public class TestController(
                 azureAppConfiguration.Value.Endpoint,
                 hasConnectionString = !string.IsNullOrWhiteSpace(azureAppConfiguration.Value.ConnectionString),
                 azureAppConfiguration.Value.Label,
+                azureAppConfiguration.Value.SentinelKey,
                 azureAppConfiguration.Value.FeatureFlagCacheExpirationSeconds
             },
             featureFlags = await GetFeatureFlagStates(),
