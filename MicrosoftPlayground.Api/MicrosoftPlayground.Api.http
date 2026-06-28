@@ -1,0 +1,19 @@
+@MicrosoftPlayground.Api_HostAddress = http://localhost:5210
+
+# Check Health
+GET {{MicrosoftPlayground.Api_HostAddress}}/api/health/
+Accept: application/json
+
+###
+
+# Check Profiles
+GET {{MicrosoftPlayground.Api_HostAddress}}/api/profile
+Accept: application/json
+
+###
+
+# Check Profile By Id
+GET {{MicrosoftPlayground.Api_HostAddress}}/api/profile/1
+Accept: application/json
+
+###
