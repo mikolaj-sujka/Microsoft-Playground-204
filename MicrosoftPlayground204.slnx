@@ -1,3 +1,5 @@
 <Solution>
   <Project Path="MicrosoftPlayground.Api/MicrosoftPlayground.Api.csproj" Id="bdff23ca-299c-4131-9af3-d2da9719afde" />
+  <Project Path="MicrosoftPlayground.Application/MicrosoftPlayground.Application.csproj" Id="60e79a44-97c8-475a-9e98-ca422b953cf6" />
+  <Project Path="MicrosoftPlayground.Common/MicrosoftPlayground.Common.csproj" />
 </Solution>

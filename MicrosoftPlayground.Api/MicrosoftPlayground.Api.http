@@ -17,3 +17,42 @@ GET {{MicrosoftPlayground.Api_HostAddress}}/api/profile/1
 Accept: application/json
 
 ###
+
+# Test configuration, options, feature flags and middleware state
+GET {{MicrosoftPlayground.Api_HostAddress}}/api/test/configuration
+Accept: application/json
+
+###
+
+# Test [FeatureGate] - returns 200 when TestFeatureGate is enabled, 404 when disabled
+GET {{MicrosoftPlayground.Api_HostAddress}}/api/test/feature-gate
+Accept: application/json
+
+###
+
+# Test middleware controlled by TestMiddleware feature flag
+# When enabled, response contains X-Test-Feature-Middleware: enabled
+GET {{MicrosoftPlayground.Api_HostAddress}}/api/test/middleware
+Accept: application/json
+
+###
+
+# Test health feature flag - returns 200 when HealthCheck is enabled, 404 when disabled
+GET {{MicrosoftPlayground.Api_HostAddress}}/api/health
+Accept: application/json
+
+###
+
+# To test disabled flags locally, add these environment variables in launchSettings.json
+# or in Visual Studio debug profile, then restart the app:
+#
+# feature_management__feature_flags__2__id=HealthCheck
+# feature_management__feature_flags__2__enabled=false
+#
+# feature_management__feature_flags__3__id=TestFeatureGate
+# feature_management__feature_flags__3__enabled=false
+#
+# feature_management__feature_flags__4__id=TestMiddleware
+# feature_management__feature_flags__4__enabled=false
+#
+# On Azure App Service, add the same keys under Configuration -> Application settings.
