@@ -19,7 +19,9 @@ public static class ConfigurationManagerExtensions
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(appConfiguration.ConnectionString))
+        var hasEndpoint = Uri.TryCreate(appConfiguration.Endpoint, UriKind.Absolute, out _);
+
+        if (string.IsNullOrWhiteSpace(appConfiguration.ConnectionString) && !hasEndpoint)
         {
             throw new InvalidOperationException(
                 "Azure App Configuration is enabled, but no Endpoint, ConnectionString, or AppConfig endpoint was provided.");

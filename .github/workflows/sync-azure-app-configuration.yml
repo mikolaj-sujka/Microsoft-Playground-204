@@ -1,0 +1,257 @@
+name: Build Validate Deploy Config
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      config_target:
+        description: Where application configuration should be pushed after Bicep deployment.
+        type: choice
+        required: true
+        default: appconfig
+        options:
+          - appconfig
+          - appservice
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  DOTNET_VERSION: 10.0.x
+  SOLUTION_FILE: MicrosoftPlayground204.slnx
+  BICEP_FILE: infra/main.bicep
+  CONFIG_FILE: deploy/appconfig/appsettings.Production.json
+  SENTINEL_KEY: TestApp:Settings:Sentinel
+
+jobs:
+  build-validate:
+    name: Build and validate Bicep
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Build application
+        run: dotnet build "$SOLUTION_FILE" --configuration Release
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Check deployment variables
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+        run: |
+          set -euo pipefail
+
+          for name in AZURE_RESOURCE_GROUP APP_BASE_URL; do
+            if [ -z "${!name:-}" ]; then
+              echo "$name repository/environment variable is required."
+              exit 1
+            fi
+          done
+
+      - name: Build Bicep
+        run: az bicep build --file "$BICEP_FILE"
+
+      - name: Validate Bicep
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          APP_NAME: ${{ vars.APP_NAME }}
+          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+          AZURE_APPCONFIG_NAME: ${{ vars.AZURE_APPCONFIG_NAME }}
+          ALERT_EMAIL: ${{ vars.ALERT_EMAIL }}
+        run: |
+          set -euo pipefail
+
+          az deployment group validate \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --template-file "$BICEP_FILE" \
+            --parameters \
+              appName="${APP_NAME:-microsoft-playground}" \
+              appBaseUrl="$APP_BASE_URL" \
+              appConfigName="${AZURE_APPCONFIG_NAME:-}" \
+              alertEmail="${ALERT_EMAIL:-}"
+
+  deploy-config:
+    name: Deploy Bicep and push configuration
+    runs-on: ubuntu-latest
+    needs: build-validate
+    environment: production
+
+    env:
+      CONFIG_TARGET: ${{ github.event_name == 'workflow_dispatch' && inputs.config_target || 'appconfig' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Check deployment variables
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_APP_SERVICE_NAME: ${{ vars.AZURE_APP_SERVICE_NAME }}
+          AZURE_APPCONFIG_NAME: ${{ vars.AZURE_APPCONFIG_NAME }}
+          CONFIG_TARGET: ${{ env.CONFIG_TARGET }}
+          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+        run: |
+          set -euo pipefail
+
+          for name in AZURE_RESOURCE_GROUP AZURE_APP_SERVICE_NAME APP_BASE_URL; do
+            if [ -z "${!name:-}" ]; then
+              echo "$name repository/environment variable is required."
+              exit 1
+            fi
+          done
+
+          if [ "$CONFIG_TARGET" = "appconfig" ] && [ -z "${AZURE_APPCONFIG_NAME:-}" ]; then
+            echo "AZURE_APPCONFIG_NAME repository/environment variable is required when CONFIG_TARGET=appconfig."
+            exit 1
+          fi
+
+      - name: Deploy Bicep
+        id: deploy
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          APP_NAME: ${{ vars.APP_NAME }}
+          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+          AZURE_APPCONFIG_NAME: ${{ vars.AZURE_APPCONFIG_NAME }}
+          ALERT_EMAIL: ${{ vars.ALERT_EMAIL }}
+        run: |
+          set -euo pipefail
+
+          deployment_name="microsoft-playground-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          outputs="$(az deployment group create \
+            --name "$deployment_name" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --template-file "$BICEP_FILE" \
+            --parameters \
+              appName="${APP_NAME:-microsoft-playground}" \
+              appBaseUrl="$APP_BASE_URL" \
+              appConfigName="${AZURE_APPCONFIG_NAME:-}" \
+              alertEmail="${ALERT_EMAIL:-}" \
+            --query properties.outputs \
+            --output json)"
+
+          app_insights_connection_string="$(echo "$outputs" | jq -r '.applicationInsightsConnectionString.value')"
+          app_config_endpoint="$(echo "$outputs" | jq -r '.appConfigEndpoint.value // ""')"
+
+          echo "::add-mask::$app_insights_connection_string"
+          echo "application_insights_connection_string=$app_insights_connection_string" >> "$GITHUB_OUTPUT"
+          echo "app_config_endpoint=$app_config_endpoint" >> "$GITHUB_OUTPUT"
+
+      - name: Push configuration to Azure App Configuration
+        if: env.CONFIG_TARGET == 'appconfig'
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_APP_SERVICE_NAME: ${{ vars.AZURE_APP_SERVICE_NAME }}
+          AZURE_APPCONFIG_NAME: ${{ vars.AZURE_APPCONFIG_NAME }}
+          AZURE_APPCONFIG_LABEL: ${{ vars.AZURE_APPCONFIG_LABEL }}
+          AZURE_APPCONFIG_ENDPOINT: ${{ vars.AZURE_APPCONFIG_ENDPOINT }}
+          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+          APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ steps.deploy.outputs.application_insights_connection_string }}
+          DEPLOYED_APPCONFIG_ENDPOINT: ${{ steps.deploy.outputs.app_config_endpoint }}
+        run: |
+          set -euo pipefail
+
+          label="${AZURE_APPCONFIG_LABEL:-Production}"
+          app_config_endpoint="${DEPLOYED_APPCONFIG_ENDPOINT:-${AZURE_APPCONFIG_ENDPOINT:-}}"
+
+          if [ -z "$app_config_endpoint" ]; then
+            echo "Could not resolve Azure App Configuration endpoint. Set AZURE_APPCONFIG_ENDPOINT or pass AZURE_APPCONFIG_NAME for an App Configuration store in this resource group."
+            exit 1
+          fi
+
+          az config set extension.use_dynamic_install=yes_without_prompt
+          az extension add --name appconfig --upgrade
+
+          az appconfig kv import \
+            --name "$AZURE_APPCONFIG_NAME" \
+            --source file \
+            --path "$CONFIG_FILE" \
+            --format json \
+            --separator ":" \
+            --label "$label" \
+            --auth-mode login \
+            --yes
+
+          az appconfig kv set \
+            --name "$AZURE_APPCONFIG_NAME" \
+            --key "ApplicationInsights:ConnectionString" \
+            --value "$APPLICATIONINSIGHTS_CONNECTION_STRING" \
+            --label "$label" \
+            --auth-mode login \
+            --yes
+
+          az appconfig kv set \
+            --name "$AZURE_APPCONFIG_NAME" \
+            --key "Observability:SelfTestBaseUrl" \
+            --value "$APP_BASE_URL" \
+            --label "$label" \
+            --auth-mode login \
+            --yes
+
+          az appconfig kv set \
+            --name "$AZURE_APPCONFIG_NAME" \
+            --key "$SENTINEL_KEY" \
+            --value "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --label "$label" \
+            --auth-mode login \
+            --yes
+
+          az webapp config appsettings set \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_APP_SERVICE_NAME" \
+            --settings \
+              APPLICATIONINSIGHTS_CONNECTION_STRING="$APPLICATIONINSIGHTS_CONNECTION_STRING" \
+              AzureAppConfiguration__Enabled=true \
+              AzureAppConfiguration__Endpoint="$app_config_endpoint" \
+              AzureAppConfiguration__Label="$label" \
+              AzureAppConfiguration__SentinelKey="$SENTINEL_KEY"
+
+      - name: Push configuration to App Service app settings
+        if: env.CONFIG_TARGET == 'appservice'
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_APP_SERVICE_NAME: ${{ vars.AZURE_APP_SERVICE_NAME }}
+          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+          APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ steps.deploy.outputs.application_insights_connection_string }}
+        run: |
+          set -euo pipefail
+
+          settings=(
+            "APPLICATIONINSIGHTS_CONNECTION_STRING=$APPLICATIONINSIGHTS_CONNECTION_STRING"
+            "ApplicationInsights__ConnectionString=$APPLICATIONINSIGHTS_CONNECTION_STRING"
+            "AzureAppConfiguration__Enabled=false"
+          )
+
+          while IFS=$'\t' read -r key value; do
+            settings+=("$key=$value")
+          done < <(jq -r 'paths(scalars) as $p | select($p[0] != "AzureAppConfiguration") | [($p | map(tostring) | join("__")), (getpath($p) | tostring)] | @tsv' "$CONFIG_FILE")
+
+          settings+=("Observability__SelfTestBaseUrl=$APP_BASE_URL")
+
+          az webapp config appsettings set \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$AZURE_APP_SERVICE_NAME" \
+            --settings "${settings[@]}"

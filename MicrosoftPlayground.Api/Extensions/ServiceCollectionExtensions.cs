@@ -26,19 +26,6 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddApplicationInisghts(
-        this IServiceCollection services,
-        IConfiguration configuration
-    )
-    {
-        services.AddApplicationInsightsTelemetry(new Microsoft.ApplicationInsights.AspNetCore.Extensions.ApplicationInsightsServiceOptions
-        {
-            ConnectionString = configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]
-        });
-
-        return services;
-    }
-
     private static IServiceCollection AddConfigurationOptions(
         this IServiceCollection services,
         IConfiguration configuration)

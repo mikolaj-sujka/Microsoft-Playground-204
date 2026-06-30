@@ -6,6 +6,12 @@ Accept: application/json
 
 ###
 
+# Availability health endpoint used by Application Insights availability tests
+GET {{MicrosoftPlayground.Api_HostAddress}}/health
+Accept: text/plain
+
+###
+
 # Check Profiles
 GET {{MicrosoftPlayground.Api_HostAddress}}/api/profile
 Accept: application/json
@@ -52,6 +58,49 @@ Accept: application/json
 # Scalar API Reference UI
 GET {{MicrosoftPlayground.Api_HostAddress}}/scalar/
 Accept: text/html
+
+###
+
+# Structured log with custom properties
+GET {{MicrosoftPlayground.Api_HostAddress}}/api/observability/log?userId=demo
+Accept: application/json
+
+###
+
+# Application exception mapped to HTTP 400 and tracked in Application Insights
+GET {{MicrosoftPlayground.Api_HostAddress}}/api/observability/exception
+Accept: application/problem+json
+
+###
+
+# Application exception mapped to HTTP 404 and tracked in Application Insights
+GET {{MicrosoftPlayground.Api_HostAddress}}/api/observability/exception?type=not-found
+Accept: application/problem+json
+
+###
+
+# Application exception mapped to HTTP 409 and tracked in Application Insights
+GET {{MicrosoftPlayground.Api_HostAddress}}/api/observability/exception?type=conflict
+Accept: application/problem+json
+
+###
+
+# Unhandled exception mapped to HTTP 500 and tracked in Application Insights
+GET {{MicrosoftPlayground.Api_HostAddress}}/api/observability/exception?type=unhandled
+Accept: application/problem+json
+
+###
+
+# Outgoing HTTP dependency simulation tracked by Application Insights dependency collection
+GET {{MicrosoftPlayground.Api_HostAddress}}/api/observability/dependency?statusCode=503&delayMs=250
+Accept: application/json
+
+###
+
+# Runs 5 internal requests to the exception endpoint.
+# This creates multiple failed request records plus logs/dependencies in Application Insights.
+POST {{MicrosoftPlayground.Api_HostAddress}}/api/observability/burst?count=5&exceptionType=unhandled
+Accept: application/json
 
 ###
 
