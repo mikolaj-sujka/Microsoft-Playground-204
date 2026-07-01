@@ -1,8 +1,10 @@
+using MicrosoftPlayground.Common.Error;
+
 namespace MicrosoftPlayground.Common.Exceptions;
 
 public sealed class PlaygroundConflictException(
     string message,
-    string errorCode = "playground.conflict",
+    string errorCode = HttpErrorCodes.PlaygroundConflict,
     string? details = null)
     : Exception(message)
 {

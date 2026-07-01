@@ -1,8 +1,10 @@
+using MicrosoftPlayground.Common.Error;
+
 namespace MicrosoftPlayground.Common.Exceptions;
 
 public sealed class PlaygroundNotFoundException(
     string message,
-    string errorCode = "playground.not_found",
+    string errorCode = HttpErrorCodes.PlaygroundNotFound,
     string? details = null)
     : Exception(message)
 {

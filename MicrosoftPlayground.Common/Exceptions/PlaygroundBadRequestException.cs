@@ -1,8 +1,10 @@
+using MicrosoftPlayground.Common.Error;
+
 namespace MicrosoftPlayground.Common.Exceptions;
 
 public sealed class PlaygroundBadRequestException(
     string message,
-    string errorCode = "playground.bad_request",
+    string errorCode = HttpErrorCodes.PlaygroundBadRequest,
     string? details = null)
     : Exception(message)
 {

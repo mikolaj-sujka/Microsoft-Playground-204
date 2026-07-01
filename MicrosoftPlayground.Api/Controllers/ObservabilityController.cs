@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using MicrosoftPlayground.Api.Extensions;
 using MicrosoftPlayground.Api.Telemetry;
+using MicrosoftPlayground.Common.Error;
 using MicrosoftPlayground.Common.Exceptions;
 
 namespace MicrosoftPlayground.Api.Controllers;
@@ -47,18 +48,18 @@ public sealed class ObservabilityController(
         throw type.ToLowerInvariant() switch
         {
             "not-found" => new PlaygroundNotFoundException(
-                "Synthetic not found exception.",
-                details: "This exception is mapped by GlobalExceptionHandler to HTTP 404."),
+                HttpErrorMessage.SyntheticNotFound,
+                details: HttpErrorMessage.MappedToHttp404),
 
             "conflict" => new PlaygroundConflictException(
-                "Synthetic conflict exception.",
-                details: "This exception is mapped by GlobalExceptionHandler to HTTP 409."),
+                HttpErrorMessage.SyntheticConflict,
+                details: HttpErrorMessage.MappedToHttp409),
 
-            "unhandled" => new InvalidOperationException("Synthetic unhandled exception for Application Insights."),
+            "unhandled" => new InvalidOperationException(HttpErrorMessage.SyntheticUnhandledException),
 
             _ => new PlaygroundBadRequestException(
-                "Synthetic application exception mapped to HTTP 400.",
-                details: "This exception is mapped by GlobalExceptionHandler to HTTP 400.")
+                HttpErrorMessage.SyntheticBadRequest,
+                details: HttpErrorMessage.MappedToHttp400)
         };
     }
 

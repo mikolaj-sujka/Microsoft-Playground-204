@@ -30,7 +30,7 @@ public sealed class GlobalExceptionMiddleware(
     {
         if (context.Response.HasStarted)
         {
-            logger.LogError(errorDetails.Exception, "An exception was thrown after the response had already started.");
+            logger.LogError(errorDetails.Exception, HttpErrorMessage.ResponseAlreadyStarted);
             ExceptionDispatchInfo.Capture(errorDetails.Exception).Throw();
         }
 
@@ -45,7 +45,7 @@ public sealed class GlobalExceptionMiddleware(
         logger.Log(
             logLevel,
             errorDetails.Exception,
-            "Handled exception {ErrorCode} as HTTP {StatusCode} for {RequestPath}",
+            HttpErrorMessage.HandledExceptionTemplate,
             errorDetails.ErrorCode,
             errorDetails.StatusCode,
             errorDetails.Path);
@@ -77,7 +77,7 @@ public sealed class GlobalExceptionMiddleware(
             PlaygroundBadRequestException badRequest => new HttpErrorDetails(
                 badRequest,
                 StatusCodes.Status400BadRequest,
-                "Bad request",
+                HttpErrorMessage.BadRequestTitle,
                 badRequest.Details ?? badRequest.Message,
                 badRequest.ErrorCode,
                 traceId,
@@ -86,7 +86,7 @@ public sealed class GlobalExceptionMiddleware(
             PlaygroundNotFoundException notFound => new HttpErrorDetails(
                 notFound,
                 StatusCodes.Status404NotFound,
-                "Resource not found",
+                HttpErrorMessage.ResourceNotFoundTitle,
                 notFound.Details ?? notFound.Message,
                 notFound.ErrorCode,
                 traceId,
@@ -95,7 +95,7 @@ public sealed class GlobalExceptionMiddleware(
             PlaygroundConflictException conflict => new HttpErrorDetails(
                 conflict,
                 StatusCodes.Status409Conflict,
-                "Conflict",
+                HttpErrorMessage.ConflictTitle,
                 conflict.Details ?? conflict.Message,
                 conflict.ErrorCode,
                 traceId,
@@ -104,18 +104,18 @@ public sealed class GlobalExceptionMiddleware(
             BadHttpRequestException badHttpRequest => new HttpErrorDetails(
                 badHttpRequest,
                 StatusCodes.Status400BadRequest,
-                "Bad request",
+                HttpErrorMessage.BadRequestTitle,
                 badHttpRequest.Message,
-                "http.bad_request",
+                HttpErrorCodes.BadHttpRequest,
                 traceId,
                 path),
 
             _ => new HttpErrorDetails(
                 exception,
                 StatusCodes.Status500InternalServerError,
-                "Unexpected server error",
+                HttpErrorMessage.UnexpectedServerErrorTitle,
                 exception.Message,
-                "http.unhandled_exception",
+                HttpErrorCodes.UnhandledException,
                 traceId,
                 path)
         };
